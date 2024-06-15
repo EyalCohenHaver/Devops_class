@@ -1,0 +1,19 @@
+services:
+    app:
+      build: .
+    prometheus:
+      image: prom/prometheus
+      ports:
+        - 9090:9090
+      networks:
+      - net
+    grafana:
+      image: grafana/grafana
+      ports:
+        - 3000:3000
+      networks:
+        - net
+
+networks:
+  net:
+    driver: bridge

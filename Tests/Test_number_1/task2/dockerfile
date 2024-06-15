@@ -1,0 +1,6 @@
+FROM python:slim
+
+WORKDIR /app
+COPY . .
+RUN python -m pip install requests
+CMD ["python", "joke.py"]
