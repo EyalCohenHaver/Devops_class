@@ -1,3 +1,3 @@
 #! /bin/bash
 
-echo curl http://127.0.0.1:5000 | grep "content:"
+echo $(curl http://127.0.0.1:5000) | wc -w
