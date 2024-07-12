@@ -1,0 +1,10 @@
+1. Run aws_lab.sh
+2. Remove the NAT
+3. Create VPC endpoint to the s3 (from private subnet)
+4. Attach Role to EC2 and upload some files from EC2 to S3
+   1. aws s3 ls
+   2. mkdir files ; cd files
+   3. for i in {1..100}; do touch file_$i; done
+   4. aws s3 cp ./files s3://<bucket_name>/ --recursive
+5. Spin up the python webpage in the webserver ec2
+6. Create another "client" ec2 in another VPC and curl the python web page with PRIVATE IP (Use vpc peering)

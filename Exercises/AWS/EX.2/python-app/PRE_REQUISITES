@@ -1,0 +1,2 @@
+sudo yum install python3-pip
+pip install Flask requests
