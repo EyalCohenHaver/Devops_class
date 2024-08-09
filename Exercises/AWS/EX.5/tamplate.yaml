@@ -1,0 +1,284 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create a VPC with public and private subnets, an EC2 instance, an IGW, and a NAT GW.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+
+Resources:
+  # VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: MyVPC
+
+  # Public Subnet 1
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1
+
+  # Public Subnet 2
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2
+
+  # Private Subnet 1
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet1
+
+  # Private Subnet 2
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet2
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MyInternetGateway
+
+  # Attach Internet Gateway to VPC
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # NAT Gateway EIP
+  NATGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  # NAT Gateway
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: MyNATGateway
+
+  # Route Table for Public Subnet
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+
+  # Route for Internet Gateway
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Associate Public Subnets with Public Route Table
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # Route Table for Private Subnet
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable
+
+  # Route for NAT Gateway
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+
+  # Associate Private Subnets with Private Route Table
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # EC2 Instance Web app LunchTamplate
+  EC2WebAppLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData: 
+        InstanceType: !Ref InstanceType
+        ImageId: ami-0ba9883b710b05ac6  # Use the latest Amazon Linux 2 AMI or your preferred AMI
+        KeyName: vockey  # Replace with your EC2 key pair name
+        SubnetId: !Ref PublicSubnet1
+        UserData: !Base64
+          "Fn::Sub": |
+            #!/bin/bash
+            sudo yum update -y
+            sudo yum install python3
+            python3 -m ensurepip
+            python3 -m pip install Flask pymongo
+
+            mkdir app
+            cd app
+
+            echo "from flask import Flask, request, jsonify
+            from pymongo import MongoClient
+            from bson.json_util import dumps
+
+            app = Flask(__name__)
+
+            # Connect to MongoDB
+            client = MongoClient('mongodb://localhost:27017/')  # Replace with your MongoDB connection string
+            db = client['test_database']
+            collection = db['test_collection']
+
+            @app.route('/')
+            def home():
+                return "Welcome to the Flask MongoDB App!"
+
+            @app.route('/add', methods=['POST'])
+            def add_data():
+                data = request.json
+                if 'name' not in data:
+                    return jsonify({'error': 'Name field is required'}), 400
+                result = collection.insert_one(data)
+                return jsonify({'inserted_id': str(result.inserted_id)}), 201
+
+            @app.route('/get', methods=['GET'])
+            def get_data():
+                documents = collection.find()
+                return dumps(documents)
+
+            if __name__ == '__main__':
+                app.run(debug=True)
+            " > app.py
+      LaunchTemplateName: EC2WebAppLT
+
+  # EC2 Instance Mongo DB
+  EC2MongoDB:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: ami-0ba9883b710b05ac6  # Use the latest Amazon Linux 2 AMI or your preferred AMI
+      KeyName: vockey  # Replace with your EC2 key pair name
+      SubnetId: !Ref PrivateSubnet1
+      Tags:
+        - Key: Name
+          Value: mongodb
+
+  # EC2 Instance Mongo UI
+  EC2MongoUI:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: ami-0ba9883b710b05ac6  # Use the latest Amazon Linux 2 AMI or your preferred AMI
+      KeyName: vockey  # Replace with your EC2 key pair name
+      SubnetId: !Ref PrivateSubnet1
+      Tags:
+        - Key: Name
+          Value: mongoui
+
+#Webapp Auto Scaling Group
+  WebAppASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: WebAppASG
+      AvailabilityZones:
+        - !ref PublicSubnet1.AvailabilityZone
+      LaunchTemplate:
+        LaunchTemplateId: !ref EC2WebAppLT
+        LaunchTemplateName: EC2WebAppLT
+        Version: !GetAtt EC2WebAppLT.LatestVersionNumber
+      MaxSize: '2'
+      MinSize: '1'
+
+Outputs:
+  VPCId:
+    Description: The VPC ID
+    Value: !Ref VPC
+
+  PublicSubnet1Id:
+    Description: The Public Subnet 1 ID
+    Value: !Ref PublicSubnet1
+
+  PublicSubnet2Id:
+    Description: The Public Subnet 2 ID
+    Value: !Ref PublicSubnet2
+
+  PrivateSubnet1Id:
+    Description: The Private Subnet 1 ID
+    Value: !Ref PrivateSubnet1
+
+  PrivateSubnet2Id:
+    Description: The Private Subnet 2 ID
+    Value: !Ref PrivateSubnet2
+
+  EC2InstanceId:
+    Description: The EC2 Instance ID
+    Value: !Ref EC2Instance
+
+  NATGatewayId:
+    Description: The NAT Gateway ID
+    Value: !Ref NATGateway
+
+  InternetGatewayId:
+    Description: The Internet Gateway ID
+    Value: !Ref InternetGateway

@@ -1,0 +1,40 @@
+#!/bin/bash
+sudo yum update -y
+sudo yum install python3
+python3 -m ensurepip
+python3 -m pip install Flask pymongo
+
+mkdir app
+cd app
+
+echo "from flask import Flask, request, jsonify
+from pymongo import MongoClient
+from bson.json_util import dumps
+
+app = Flask(__name__)
+
+# Connect to MongoDB
+client = MongoClient('mongodb://localhost:27017/')  # Replace with your MongoDB connection string
+db = client['test_database']
+collection = db['test_collection']
+
+@app.route('/')
+def home():
+    return "Welcome to the Flask MongoDB App!"
+
+@app.route('/add', methods=['POST'])
+def add_data():
+    data = request.json
+    if 'name' not in data:
+        return jsonify({'error': 'Name field is required'}), 400
+    result = collection.insert_one(data)
+    return jsonify({'inserted_id': str(result.inserted_id)}), 201
+
+@app.route('/get', methods=['GET'])
+def get_data():
+    documents = collection.find()
+    return dumps(documents)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+" > app.py
