@@ -48,7 +48,7 @@ Congratulations! You’ve just been hired as a DevOps engineer at a fintech star
 
 3. **Caching and Storage:**
    - Images in the UI will be cached using CloudFront.
-   - Images will be stored in a private S3 bucket, accessible only from EC2 instances via a private network.
+   - Images will be stored in a private S3 bucket, accessible only from EC2 instances via a private network.*************************
 
 4. **Automation and Scaling:**
    - A cron job will trigger the daily email notifications.
@@ -56,7 +56,7 @@ Congratulations! You’ve just been hired as a DevOps engineer at a fintech star
    - EC2 instances will be part of an Auto Scaling Group (ASG) to handle high CPU usage.
 
 5. **Database:**
-   - The MySQL database will be hosted on Amazon RDS.
+   - The MySQL database will be hosted on Amazon RDS.***********************
 
 6. **Networking:**
    - The setup will include a VPC, Security Groups (SG), private and public subnets, NAT Gateway, and Internet Gateway (IGW).
