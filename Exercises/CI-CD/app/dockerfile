@@ -1,0 +1,12 @@
+FROM python:slim
+
+WORKDIR /APP
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+
+#RUN pytest
+
+CMD [ "python", "users.py" ]
